@@ -1,7 +1,11 @@
 import tkinter as tk
 from tkinter import messagebox
 
-from converter import centimeters_to_meters, format_meters
+from converter import (
+    centimeters_to_meters,
+    format_decimal,
+    meters_to_centimeters,
+)
 
 
 BACKGROUND = "#000000"
@@ -19,16 +23,20 @@ ACTION_KEY_ACTIVE = "#ffb340"
 class UnitConverterApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
+        self.direction = "cm_to_m"
         self.input_value = tk.StringVar(value="0")
         self.result_value = tk.StringVar(value="等待换算")
+        self.input_unit_value = tk.StringVar(value="厘米")
+        self.direction_buttons: dict[str, tk.Button] = {}
 
         self._configure_window()
         self._build_display()
         self._build_keypad()
         self._bind_keyboard_shortcuts()
+        self._update_direction_ui()
 
     def _configure_window(self) -> None:
-        self.root.title("厘米换算器")
+        self.root.title("单位换算器")
         self.root.configure(bg=BACKGROUND)
         self.root.geometry("390x680")
         self.root.minsize(360, 620)
@@ -42,12 +50,37 @@ class UnitConverterApp:
         )
         display.pack(fill="x", padx=18, pady=(18, 10))
 
+        direction_bar = tk.Frame(display, bg="#1c1c1e")
+        direction_bar.pack(fill="x", pady=(0, 18))
+        direction_bar.grid_columnconfigure(0, weight=1)
+        direction_bar.grid_columnconfigure(1, weight=1)
+
+        directions = (
+            ("cm_to_m", "厘米  →  米"),
+            ("m_to_cm", "米  →  厘米"),
+        )
+        for column, (key, label) in enumerate(directions):
+            button = tk.Button(
+                direction_bar,
+                text=label,
+                command=lambda direction=key: self._set_direction(direction),
+                relief="flat",
+                borderwidth=0,
+                highlightthickness=0,
+                cursor="hand2",
+                font=("Microsoft YaHei UI", 11),
+                padx=8,
+                pady=8,
+            )
+            button.grid(row=0, column=column, sticky="nsew", padx=2, pady=2)
+            self.direction_buttons[key] = button
+
         tk.Label(
             display,
-            text="厘米  →  米",
+            text="输入",
             bg=DISPLAY_BACKGROUND,
             fg=MUTED,
-            font=("Microsoft YaHei UI", 13),
+            font=("Microsoft YaHei UI", 11),
             anchor="e",
         ).pack(fill="x")
 
@@ -69,7 +102,7 @@ class UnitConverterApp:
 
         tk.Label(
             display,
-            text="厘米",
+            textvariable=self.input_unit_value,
             bg=DISPLAY_BACKGROUND,
             fg=MUTED,
             font=("Microsoft YaHei UI", 12),
@@ -93,6 +126,8 @@ class UnitConverterApp:
 
         for column in range(3):
             keypad.grid_columnconfigure(column, weight=1, uniform="keys")
+        for row in range(5):
+            keypad.grid_rowconfigure(row, weight=1)
 
         key_rows = (
             ("7", "8", "9"),
@@ -141,7 +176,7 @@ class UnitConverterApp:
             self._backspace,
             key_type="function",
         )
-        convert_button = self._add_key(
+        self.convert_button = self._add_key(
             keypad,
             4,
             1,
@@ -150,7 +185,7 @@ class UnitConverterApp:
             key_type="action",
             columnspan=2,
         )
-        convert_button.configure(font=("Microsoft YaHei UI", 17, "bold"))
+        self.convert_button.configure(font=("Microsoft YaHei UI", 17, "bold"))
 
     def _add_key(
         self,
@@ -226,15 +261,47 @@ class UnitConverterApp:
         self.input_entry.icursor("end")
         self.input_entry.focus_set()
 
+    def _set_direction(self, direction: str) -> None:
+        if direction == self.direction:
+            return
+
+        self.direction = direction
+        self._clear()
+        self._update_direction_ui()
+
+    def _update_direction_ui(self) -> None:
+        is_centimeters_to_meters = self.direction == "cm_to_m"
+        self.input_unit_value.set("厘米" if is_centimeters_to_meters else "米")
+        self.convert_button.configure(
+            text="换算为米" if is_centimeters_to_meters else "换算为厘米"
+        )
+        self.root.title(
+            "厘米换算器" if is_centimeters_to_meters else "米换算器"
+        )
+
+        for key, button in self.direction_buttons.items():
+            is_active = key == self.direction
+            button.configure(
+                bg=DIGIT_KEY if is_active else "#1c1c1e",
+                fg=TEXT if is_active else MUTED,
+                activebackground=DIGIT_KEY_ACTIVE,
+                activeforeground=TEXT,
+            )
+
     def _convert(self) -> None:
         try:
-            meters = centimeters_to_meters(self.input_value.get())
+            if self.direction == "cm_to_m":
+                result = centimeters_to_meters(self.input_value.get())
+                result_unit = "米"
+            else:
+                result = meters_to_centimeters(self.input_value.get())
+                result_unit = "厘米"
         except ValueError as exc:
             messagebox.showerror("输入有误", str(exc), parent=self.root)
             self.input_entry.focus_set()
             return
 
-        self.result_value.set(f"{format_meters(meters)} 米")
+        self.result_value.set(f"{format_decimal(result)} {result_unit}")
 
 
 def main() -> None:
